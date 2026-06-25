@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────
+# DS Agent — Python Requirements
+# Install: pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────
+
+# ── Core Data Science ──────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# ── Machine Learning ───────────────────────────────────────
+scikit-learn>=1.3.0
+
+# ── Visualization ──────────────────────────────────────────
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# ── File Format Support ────────────────────────────────────
+openpyxl>=3.1.0        # Excel (.xlsx) read/write
+pyarrow>=14.0.0        # Parquet files
+xlrd>=2.0.1            # Old Excel (.xls) read
+
+# ── Jupyter Notebook ───────────────────────────────────────
+nbformat>=5.9.0        # Notebook file creation
+jupyter>=1.0.0         # Optional: run notebooks
+
+# ── Utilities ──────────────────────────────────────────────
+python-dotenv>=1.0.0   # .env file loading (optional)
