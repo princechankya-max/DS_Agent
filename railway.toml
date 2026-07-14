@@ -1,4 +1,5 @@
 [build]
+rootDirectory = "ds-agent"
 buildCommand = "npm run build"
 
 [deploy]
