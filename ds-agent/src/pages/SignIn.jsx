@@ -69,19 +69,21 @@ export function SignIn() {
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const nav = useNavigate();
 
   const handleSubmit = async () => {
     if (!email || !pw) { setErr('All fields required'); return; }
-    setLoading(true); setErr('');
+    setLoading(true); setErr(''); setVerificationRequired(false);
     try {
       const res = await authApi.login({ email, password: pw });
       login(res.data.user, res.data.access_token, res.data.refresh_token || '');
       nav('/dashboard');
     } catch (e) {
       setErr(e.response?.data?.error || 'Login failed');
+      setVerificationRequired(e.response?.data?.code === 'EMAIL_NOT_VERIFIED');
     }
     setLoading(false);
   };
@@ -91,7 +93,7 @@ export function SignIn() {
     setLoading(true); setErr('');
     try {
       const res = await authApi.login({ email: 'demo@dsagent.ai', password: 'Demo@12345' });
-      login(res.data.user, res.data.access_token, '');
+      login(res.data.user, res.data.access_token, res.data.refresh_token || '');
       nav('/dashboard');
     } catch { setErr('Demo login failed. Make sure server is running.'); }
     setLoading(false);
@@ -100,9 +102,10 @@ export function SignIn() {
   return (
     <AuthShell title="Welcome back" sub="Sign in to your DS Agent account">
       {err && <div style={{ background: 'rgba(255,83,112,0.1)', border: '1px solid rgba(255,83,112,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#FF8098', marginBottom: 16 }}>{err}</div>}
+      {verificationRequired && <Link to="/verify-email" style={{ display: 'block', color: C.primary, fontSize: 13, marginBottom: 16 }}>Resend verification email</Link>}
       <Field label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
       <Field label="Password" type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="Your password"
-        extra={<div style={{ textAlign: 'right', marginTop: 6 }}><Link to="/forgot-password" style={{ fontSize: 12, color: C.primary }}>Forgot password?</Link></div>} />
+        extra={<div style={{ textAlign: 'right', marginTop: 7 }}><Link to="/forgot-password" style={{ color: C.primary, fontSize: 12 }}>Forgot password?</Link></div>} />
       <button onClick={handleSubmit} disabled={loading} style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)'), width: '100%', fontSize: 14, padding: '13px', borderRadius: 12, marginBottom: 10, opacity: loading ? 0.7 : 1 }}>
         {loading ? 'Signing in...' : 'Sign In'}
       </button>
@@ -134,7 +137,7 @@ export function SignUp() {
     setLoading(true); setErr('');
     try {
       await authApi.register({ name: form.name, email: form.email, password: form.password });
-      setSuccess('Account created! Check your email to verify (or use the dev token in server logs).');
+      setSuccess('Account created. Check your email for a verification link. If it does not arrive, you can request another verification email.');
     } catch (e) {
       setErr(e.response?.data?.error || 'Registration failed');
     }
@@ -146,6 +149,7 @@ export function SignUp() {
       <div style={{ textAlign: 'center', padding: '20px 0' }}>
         <div style={{ fontSize: 52, marginBottom: 20, animation: 'float 3s ease-in-out infinite' }}>📧</div>
         <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>{success}</p>
+        <Link to="/verify-email" style={{ display: 'block', color: C.primary, fontSize: 13, marginBottom: 18 }}>Resend verification email</Link>
         <button onClick={() => nav('/signin')} style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)'), width: '100%', borderRadius: 12 }}>Go to Sign In</button>
       </div>
     </AuthShell>

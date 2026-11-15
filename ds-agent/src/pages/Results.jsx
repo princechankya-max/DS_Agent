@@ -29,6 +29,75 @@ function Section({ title, children, style = {} }) {
   );
 }
 
+function InsightText({ text }) {
+  return String(text).split(/(\*\*.*?\*\*)/g).map((part, index) => (
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={index} style={{ color: '#EEF0FF' }}>{part.slice(2, -2)}</strong>
+      : part
+  ));
+}
+
+function AuthenticatedImage({ id, file, alt }) {
+  const [src, setSrc] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl;
+    setSrc('');
+    setFailed(false);
+    analysisApi.visualization(id, file).then(({ data: blob }) => {
+      objectUrl = URL.createObjectURL(blob);
+      if (!cancelled) setSrc(objectUrl);
+      else URL.revokeObjectURL(objectUrl);
+    }).catch(() => {
+      if (!cancelled) setFailed(true);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [id, file]);
+
+  if (failed) return <div style={{ color: C.muted, fontSize: 12 }}>Visualization unavailable</div>;
+  if (!src) return <div style={{ color: C.muted, fontSize: 12 }}>Loading visualization...</div>;
+  return <img src={src} alt={alt} style={{ width: '100%', borderRadius: 10, objectFit: 'cover' }} />;
+}
+
+function DownloadButton({ id, file, visualization = false, children, style }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleDownload = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data: blob } = visualization
+        ? await analysisApi.visualization(id, file)
+        : await analysisApi.download(id, file);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = file;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch {
+      setError('Download failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleDownload} disabled={loading} style={style}>
+        {loading ? 'Preparing...' : children}
+      </button>
+      {error && <div style={{ color: C.coral, fontSize: 11, marginTop: 6 }}>{error}</div>}
+    </div>
+  );
+}
+
 export default function Results() {
   const { id } = useParams();
   const nav = useNavigate();
@@ -36,26 +105,92 @@ export default function Results() {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [question, setQuestion] = useState('');
+  const [dataConsent, setDataConsent] = useState(false);
+  const [questionJobId, setQuestionJobId] = useState('');
+  const [questionStatus, setQuestionStatus] = useState('');
+  const [questionResult, setQuestionResult] = useState(null);
+  const [questionError, setQuestionError] = useState('');
+  const [questionSending, setQuestionSending] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let timeout;
     const fetch = async () => {
       try {
         const res = await analysisApi.get(id);
+        if (cancelled) return;
         setData(res.data);
         if (res.data.status === 'running' || res.data.status === 'queued') {
-          setTimeout(fetch, 3000); // poll
+          timeout = setTimeout(fetch, 3000);
         }
-      } catch (e) { setErr('Analysis not found'); }
-      setLoading(false);
+      } catch {
+        if (!cancelled) setErr('Analysis not found');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     fetch();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [id]);
+
+  useEffect(() => {
+    if (!questionJobId) return undefined;
+    let cancelled = false;
+    let timeout;
+    const pollQuestion = async () => {
+      try {
+        const { data: job } = await analysisApi.getQuestion(id, questionJobId);
+        if (cancelled) return;
+        setQuestionStatus(job.status);
+        if (job.status === 'completed') {
+          setQuestionResult(job.result);
+          return;
+        }
+        if (job.status === 'failed') {
+          setQuestionError(job.error || 'AI Analyst could not answer this question.');
+          return;
+        }
+        timeout = setTimeout(pollQuestion, 1500);
+      } catch (error) {
+        if (!cancelled) setQuestionError(error.response?.data?.error || 'Could not load the AI Analyst response.');
+      }
+    };
+    pollQuestion();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [id, questionJobId]);
+
+  const submitQuestion = async event => {
+    event.preventDefault();
+    setQuestionError('');
+    setQuestionResult(null);
+    setQuestionJobId('');
+    setQuestionStatus('');
+    setQuestionSending(true);
+    try {
+      const { data: job } = await analysisApi.ask(id, question, dataConsent);
+      setQuestionJobId(job.job_id);
+      setQuestionStatus(job.status);
+    } catch (error) {
+      setQuestionError(error.response?.data?.error || 'Could not submit the AI Analyst question.');
+    } finally {
+      setQuestionSending(false);
+    }
+  };
 
   const TABS = [
     { id: 'overview', icon: '📊', label: 'Overview' },
     { id: 'profile', icon: '🔍', label: 'Data Profile' },
     { id: 'charts', icon: '🎨', label: 'Visualizations' },
     { id: 'insights', icon: '💡', label: 'Insights' },
+    { id: 'ml', icon: '🤖', label: 'Machine Learning' },
+    { id: 'analyst', icon: '✨', label: 'AI Analyst' },
     { id: 'download', icon: '📥', label: 'Download' },
   ];
 
@@ -113,6 +248,13 @@ export default function Results() {
           </div>
         )}
 
+        {data?.status === 'failed' && (
+          <div style={{ ...G.panel({ padding: '20px', marginBottom: 20, background: 'rgba(255,83,112,0.08)', borderColor: 'rgba(255,83,112,0.25)' }) }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: C.coral, marginBottom: 6 }}>Analysis failed</div>
+            <div style={{ fontSize: 12, color: C.muted, whiteSpace: 'pre-wrap' }}>{data.error_msg || 'The analysis could not be completed.'}</div>
+          </div>
+        )}
+
         <TabBar tabs={TABS} active={tab} onSelect={setTab} />
 
         {/* OVERVIEW TAB */}
@@ -149,7 +291,7 @@ export default function Results() {
               <Section title="💡 Key Insights Preview">
                 {result.insights.slice(0, 4).map((ins, i) => (
                   <div key={i} style={{ padding: '10px 14px', background: 'rgba(139,124,248,0.06)', border: `1px solid rgba(139,124,248,0.15)`, borderRadius: 10, marginBottom: 8, fontSize: 13, color: '#C4CDD9', lineHeight: 1.6 }}>
-                    <span style={{ color: C.primary, fontWeight: 700 }}>{i+1}.</span> <span dangerouslySetInnerHTML={{ __html: ins.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#EEF0FF">$1</strong>') }} />
+                  <span style={{ color: C.primary, fontWeight: 700 }}>{i+1}.</span> <span><InsightText text={ins} /></span>
                   </div>
                 ))}
               </Section>
@@ -228,11 +370,8 @@ export default function Results() {
                   {result.viz_info.map((v, i) => (
                     <div key={i} style={G.panel({ padding: '16px', overflow: 'hidden' })}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: C.muted, marginBottom: 10 }}>{v.name}</div>
-                      <img src={`/outputs/${id}/${v.path.split('/').pop()}`} alt={v.name}
-                        style={{ width: '100%', borderRadius: 10, objectFit: 'cover' }}
-                        onError={e => { e.target.style.display='none'; }}
-                      />
-                      <a href={`/api/analysis/${id}/download/${v.path.split('/').pop()}`} style={{ display: 'block', textAlign: 'center', marginTop: 8, fontSize: 11, color: C.primary }}>⬇ Download</a>
+                      <AuthenticatedImage id={id} file={v.path.split(/[\\/]/).pop()} alt={v.name} />
+                      <DownloadButton id={id} file={v.path.split(/[\\/]/).pop()} visualization style={{ display: 'block', width: '100%', marginTop: 8, background: 'transparent', border: 0, color: C.primary, cursor: 'pointer', fontSize: 11 }}>⬇ Download</DownloadButton>
                     </div>
                   ))}
                 </div>
@@ -258,12 +397,136 @@ export default function Results() {
                 ) : result.insights.map((ins, i) => (
                   <div key={i} style={{ padding: '14px 16px', background: 'rgba(139,124,248,0.06)', border: `1px solid rgba(139,124,248,0.15)`, borderRadius: 12, marginBottom: 10, fontSize: 13, color: '#C4CDD9', lineHeight: 1.7 }}>
                     <strong style={{ color: C.primary, marginRight: 8 }}>{i+1}.</strong>
-                    <span dangerouslySetInnerHTML={{ __html: ins.replace(/\*\*(.*?)\*\*/g, '<strong style="color:#EEF0FF">$1</strong>') }} />
+                    <span><InsightText text={ins} /></span>
                   </div>
                 ))}
               </Section>
             ) : (
               <Section><div style={{ textAlign: 'center', padding: '40px', color: C.muted }}>{isRunning ? 'Generating insights...' : 'No insights available'}</div></Section>
+            )}
+          </div>
+        )}
+
+        {tab === 'ml' && (
+          <div style={{ animation: 'fadeUp 0.4s ease' }}>
+            {!result?.ml || result.ml.status === 'not_requested' ? (
+              <Section>
+                <div style={{ textAlign: 'center', padding: 32, color: C.muted }}>Choose EDA + ML or Full Pipeline and provide a target column to compare models.</div>
+              </Section>
+            ) : result.ml.status === 'skipped' ? (
+              <Section title="🤖 Machine Learning">
+                <p style={{ color: C.amber, fontSize: 13 }}>{result.ml.reason}</p>
+              </Section>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 16 }}>
+                  {[
+                    ['Task', result.ml.task],
+                    ['Target', result.ml.target],
+                    ['Best Model', result.ml.best_model],
+                    ['Train / Test Rows', `${result.ml.train_rows} / ${result.ml.test_rows}`],
+                    ['Features Used', result.ml.feature_count],
+                  ].map(([label, value]) => (
+                    <div key={label} style={G.panel({ padding: 16, textAlign: 'center' })}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: C.primary, marginBottom: 4, textTransform: 'capitalize' }}>{value}</div>
+                      <div style={{ fontSize: 10, color: C.muted, textTransform: 'uppercase' }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <Section title={`Model Comparison · selected by ${result.ml.selection_metric}`}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+                    {result.ml.models.map(model => (
+                      <div key={model.name} style={G.panel({ padding: 16, borderColor: model.name === result.ml.best_model ? 'rgba(94,207,178,0.35)' : C.border })}>
+                        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{model.name}{model.name === result.ml.best_model ? ' · Best' : ''}</div>
+                        {model.metrics ? Object.entries(model.metrics).map(([metric, value]) => (
+                          <div key={metric} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, padding: '4px 0' }}>
+                            <span>HOLDOUT · {metric.replace('_', ' ').toUpperCase()}</span><strong style={{ color: C.text }}>{value}</strong>
+                          </div>
+                        )) : <p style={{ color: C.coral, fontSize: 12 }}>{model.error}</p>}
+                        {model.cv_metrics && Object.entries(model.cv_metrics).map(([metric, value]) => (
+                          <div key={metric} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, padding: '4px 0' }}>
+                            <span>CV · {metric.replace('_', ' ').toUpperCase()}</span><strong style={{ color: C.text }}>{value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color: C.muted, fontSize: 11, marginTop: 14 }}>Models are selected using cross-validation within the training split. Holdout metrics are reported separately; preprocessing is fit within each training fold. This is a baseline comparison, not a production-ready model.</p>
+                </Section>
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === 'analyst' && (
+          <div style={{ animation: 'fadeUp 0.4s ease' }}>
+            <Section title="Ask about this dataset">
+              <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
+                Ask for summaries, category counts, grouped totals, or correlations. DS Agent validates a fixed query plan; it never executes model-generated SQL or Python.
+              </p>
+              <form onSubmit={submitQuestion}>
+                <textarea
+                  value={question}
+                  onChange={event => setQuestion(event.target.value)}
+                  maxLength={1000}
+                  minLength={5}
+                  required
+                  placeholder="For example: Which regions have the highest total sales?"
+                  style={{ ...G.input, width: '100%', minHeight: 96, resize: 'vertical', marginBottom: 10 }}
+                />
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, color: C.muted, fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>
+                  <input
+                    type="checkbox"
+                    checked={dataConsent}
+                    onChange={event => setDataConsent(event.target.checked)}
+                    style={{ marginTop: 2 }}
+                  />
+                  <span>
+                    I agree to send my question and column names to the configured AI provider. The aggregate query result may also be sent to explain it; raw dataset rows and credentials are not sent.
+                  </span>
+                </label>
+                <button
+                  type="submit"
+                  disabled={questionSending || questionStatus === 'queued' || questionStatus === 'running'}
+                  style={G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)', true)}
+                >
+                  {questionSending ? 'Submitting...' : ['queued', 'running'].includes(questionStatus) ? 'Analyzing...' : 'Ask AI Analyst'}
+                </button>
+                {questionJobId && ['queued', 'running'].includes(questionStatus) && (
+                  <span style={{ color: C.muted, fontSize: 12, marginLeft: 12 }}>Question {questionStatus}…</span>
+                )}
+              </form>
+            </Section>
+            {questionError && (
+              <Section title="AI Analyst" style={{ marginTop: 14, borderColor: 'rgba(255,83,112,0.3)' }}>
+                <p style={{ color: C.coral, fontSize: 13 }}>{questionError}</p>
+              </Section>
+            )}
+            {questionResult && (
+              <Section title="AI Analyst answer" style={{ marginTop: 14 }}>
+                <p style={{ color: C.text, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{questionResult.answer}</p>
+                {questionResult.query_result?.summary && (
+                  <p style={{ color: C.muted, fontSize: 12, marginTop: 12 }}>{questionResult.query_result.summary}</p>
+                )}
+                {questionResult.query_result?.rows?.length > 0 && (
+                  <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr>{Object.keys(questionResult.query_result.rows[0]).map(column => (
+                          <th key={column} style={{ textAlign: 'left', padding: 8, color: C.muted, borderBottom: `1px solid ${C.border}` }}>{column.replaceAll('_', ' ')}</th>
+                        ))}</tr>
+                      </thead>
+                      <tbody>
+                        {questionResult.query_result.rows.map((row, index) => (
+                          <tr key={index}>{Object.values(row).map((value, cellIndex) => (
+                            <td key={cellIndex} style={{ padding: 8, borderBottom: `1px solid ${C.border}`, color: C.text }}>{value == null ? '—' : String(value)}</td>
+                          ))}</tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Section>
             )}
           </div>
         )}
@@ -277,14 +540,18 @@ export default function Results() {
                 ['📋', 'eda_report.md', 'Statistical Report', 'eda_report.md'],
                 ['💡', 'insights_report.md', 'Business Insights', 'insights_report.md'],
                 ['📓', 'analysis_notebook.ipynb', 'Jupyter Notebook', 'analysis_notebook.ipynb'],
-              ].map(([icon, name, desc, file]) => (
+                ['🤖', 'ml_report.md', 'Model Comparison', 'ml_report.md'],
+              ].filter(([, , , file]) => (
+                (file !== 'analysis_notebook.ipynb' || result?.files?.notebook) &&
+                (file !== 'ml_report.md' || result?.files?.ml_report)
+              )).map(([icon, name, desc, file]) => (
                 <div key={name} style={G.panel({ padding: '22px', display: 'flex', flexDirection: 'column', gap: 12 })}>
                   <div style={{ fontSize: 32 }}>{icon}</div>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{name}</div>
                     <div style={{ fontSize: 12, color: C.muted }}>{desc}</div>
                   </div>
-                  <a href={analysisApi.downloadUrl(id, file)} download style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)', true), display: 'inline-block', textAlign: 'center', textDecoration: 'none' }}>⬇ Download</a>
+                  <DownloadButton id={id} file={file} style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)', true), width: '100%' }}>⬇ Download</DownloadButton>
                 </div>
               ))}
             </div>
@@ -298,7 +565,7 @@ export default function Results() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {result.viz_info.slice(0, 3).map((v, i) => (
-                    <a key={i} href={analysisApi.downloadUrl(id, v.path.split('/').pop())} download style={{ ...G.btn('rgba(255,255,255,0.07)', true), border: `1px solid ${C.border}`, textDecoration: 'none', fontSize: 11 }}>⬇ {v.name.slice(0, 15)}</a>
+                    <DownloadButton key={i} id={id} file={v.path.split(/[\\/]/).pop()} visualization style={{ ...G.btn('rgba(255,255,255,0.07)', true), border: `1px solid ${C.border}`, fontSize: 11 }}>⬇ {v.name.slice(0, 15)}</DownloadButton>
                   ))}
                   {result.viz_info.length > 3 && <span style={{ color: C.muted, fontSize: 12, alignSelf: 'center' }}>+{result.viz_info.length - 3} more</span>}
                 </div>

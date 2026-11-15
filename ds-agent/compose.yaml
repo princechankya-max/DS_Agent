@@ -1,0 +1,153 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: dsagent_demo
+      POSTGRES_USER: dsagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dsagent-demo-only}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dsagent -d dsagent_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    command: ["/data"]
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-dsagent-demo}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-dsagent-demo-only}
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_OBS_LOGGER_LEVEL: error
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - object-data:/data
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025"
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      DEMO_MODE: "true"
+      SERVE_FRONTEND: "true"
+      PORT: 3001
+      APP_URL: http://localhost:3001
+      JWT_SECRET: ${JWT_SECRET:-local-demo-access-secret-not-for-deployment}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-demo-refresh-secret-not-for-deployment}
+      DATABASE_URL: postgres://dsagent:${POSTGRES_PASSWORD:-dsagent-demo-only}@postgres:5432/dsagent_demo
+      DATABASE_SSL: "false"
+      REDIS_URL: redis://redis:6379
+      OBJECT_STORAGE_ENDPOINT: http://rustfs:9000
+      OBJECT_STORAGE_BUCKET: ds-agent
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-dsagent-demo}
+      OBJECT_STORAGE_SECRET_KEY: ${RUSTFS_SECRET_KEY:-dsagent-demo-only}
+      OBJECT_STORAGE_PATH_STYLE: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: "DS Agent Demo <no-reply@dsagent.local>"
+      UPLOADS_DIR: /data/uploads
+      OUTPUTS_DIR: /data/outputs
+      TEMP_WORK_DIR: /tmp/ds-agent
+      MPLCONFIGDIR: /tmp/matplotlib
+      PYTHONDONTWRITEBYTECODE: "1"
+    ports:
+      - "3001:3001"
+    volumes:
+      - ds-agent-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_started
+      mailpit:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  analysis-worker:
+    build:
+      context: .
+    command: ["node", "backend/workers/analysis.js"]
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      DEMO_MODE: "true"
+      DATABASE_URL: postgres://dsagent:${POSTGRES_PASSWORD:-dsagent-demo-only}@postgres:5432/dsagent_demo
+      DATABASE_SSL: "false"
+      REDIS_URL: redis://redis:6379
+      OBJECT_STORAGE_ENDPOINT: http://rustfs:9000
+      OBJECT_STORAGE_BUCKET: ds-agent
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-dsagent-demo}
+      OBJECT_STORAGE_SECRET_KEY: ${RUSTFS_SECRET_KEY:-dsagent-demo-only}
+      OBJECT_STORAGE_PATH_STYLE: "true"
+      OUTPUTS_DIR: /data/outputs
+      TEMP_WORK_DIR: /tmp/ds-agent
+      MPLCONFIGDIR: /tmp/matplotlib
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ds-agent-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  object-data:
+  ds-agent-data:
