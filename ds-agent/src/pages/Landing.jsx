@@ -1,23 +1,24 @@
 import { useNavigate } from 'react-router-dom';
 import Aurora from '../components/Aurora.jsx';
 import { C, G, GLOBAL_CSS } from '../utils/design.js';
+import { PLANS } from '../../shared/plans.js';
 
 export default function Landing() {
   const nav = useNavigate();
   const features = [
-    { icon: '📤', title: 'Smart Upload', desc: 'CSV, Excel, JSON, Parquet. Magic-bytes validation. Instant preview. Up to 100MB.', color: C.primary },
+    { icon: '📤', title: 'Smart Upload', desc: 'Upload CSV, Excel, JSON, and Parquet datasets up to 100MB.', color: C.primary },
     { icon: '🧹', title: 'Auto ETL', desc: 'Null handling, type fixing, outlier capping, deduplication. Full audit log.', color: C.teal },
-    { icon: '📊', title: 'Rich EDA', desc: 'Statistical summaries, correlation matrices, distribution plots, anomaly detection.', color: C.amber },
-    { icon: '🎨', title: '50+ Charts', desc: 'Histograms, heatmaps, boxplots, pairplots — all in premium dark style.', color: C.rose },
-    { icon: '🤖', title: 'AutoML', desc: 'Logistic Regression, Random Forest, XGBoost, LightGBM — auto cross-validated.', color: C.primary },
-    { icon: '📥', title: '5 Deliverables', desc: 'cleaned_data.csv + eda_report.md + insights_report.md + /visualizations/ + notebook.ipynb', color: C.teal },
+    { icon: '📊', title: 'Rich EDA', desc: 'Statistical summaries, correlations, data-quality insights, and outlier handling.', color: C.amber },
+    { icon: '🎨', title: 'Dataset Visualizations', desc: 'Distribution, category-count, correlation, missing-value, and pair plots.', color: C.rose },
+    { icon: '🤖', title: 'ML Baselines', desc: 'Compare classification or regression baselines on a held-out test set.', color: C.primary },
+    { icon: '📥', title: 'Analysis Reports', desc: 'Download cleaned data, EDA and insights reports, charts, and a notebook.', color: C.teal },
   ];
   const steps = [
     { icon: '📤', title: 'Upload', desc: 'Drag & drop your CSV, Excel, JSON, or Parquet file' },
     { icon: '🔍', title: 'Profile', desc: 'Auto-detect types, nulls, stats, and data quality issues' },
     { icon: '🧹', title: 'Clean', desc: 'ETL pipeline runs automatically with full before/after log' },
     { icon: '📊', title: 'Analyze', desc: 'EDA + visualizations + optional ML modeling' },
-    { icon: '📥', title: 'Download', desc: '5 ready-to-share deliverables generated every time' },
+    { icon: '📥', title: 'Download', desc: 'Download the five core analysis deliverables' },
   ];
 
   return (
@@ -47,7 +48,7 @@ export default function Landing() {
             Your Data.<br />
             <span style={{ background: 'linear-gradient(135deg,#8B7CF8 0%,#C4B9FF 45%,#5ECFB2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Analyzed Instantly.</span>
           </h1>
-          <p style={{ color: C.muted, fontSize: 18, maxWidth: 520, margin: '0 auto 36px', lineHeight: 1.7 }}>Upload any dataset. DS Agent handles everything — ETL, EDA, 50+ charts, AI insights, and ML models. Zero code required.</p>
+          <p style={{ color: C.muted, fontSize: 18, maxWidth: 520, margin: '0 auto 36px', lineHeight: 1.7 }}>Upload a dataset for automated cleaning, EDA, visualizations, data insights, and optional ML baselines.</p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => nav('/signup')} style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)'), fontSize: 15, padding: '14px 36px', boxShadow: '0 6px 32px rgba(139,124,248,0.32)', borderRadius: 13 }}
               onMouseEnter={e => { e.target.style.transform = 'translateY(-3px)'; e.target.style.boxShadow = '0 12px 40px rgba(139,124,248,0.45)'; }}
@@ -55,14 +56,14 @@ export default function Landing() {
               Start Analyzing Free →
             </button>
             <button onClick={() => nav('/signin')} style={{ background: 'rgba(255,255,255,0.06)', border: `1px solid ${C.border}`, color: C.text, fontSize: 15, padding: '14px 32px', borderRadius: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.2s' }}>
-              Try Demo Dataset
+              Try Demo Account
             </button>
           </div>
         </div>
 
         {/* STATS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 80 }}>
-          {[['10K+','Datasets Analyzed'],['50+','Chart Types'],['5','Deliverables Per Run'],['99%','Uptime SLA']].map(([n,l])=>(
+          {[['CSV / Excel','Also JSON and Parquet'],['Up to 16','Dataset-dependent charts'],['5','Core deliverables'],['Optional','ML baselines']].map(([n,l])=>(
             <div key={l} style={G.panel({ padding: '24px', textAlign: 'center' })}>
               <div style={{ fontSize: 34, fontWeight: 900, background: 'linear-gradient(135deg,#8B7CF8,#5ECFB2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '-1px', marginBottom: 6 }}>{n}</div>
               <div style={{ fontSize: 13, color: C.muted, fontWeight: 500 }}>{l}</div>
@@ -87,6 +88,31 @@ export default function Landing() {
           ))}
         </div>
 
+        {/* PRICING */}
+        <div id="pricing" style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 12 }}>Simple monthly plans</div>
+          <h2 style={{ fontSize: 'clamp(26px,3vw,38px)', fontWeight: 800, letterSpacing: '-1px' }}>Start free. Upgrade as you grow.</h2>
+          <p style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>One account is one seat. Paid checkout becomes available after Razorpay is configured.</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 16, marginBottom: 80 }}>
+          {Object.values(PLANS).map(plan => (
+            <div key={plan.code} style={G.panel({ padding: 24, borderColor: plan.code === 'pro' ? 'rgba(139,124,248,0.45)' : C.border })}>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>{plan.name}</div>
+              <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 4 }}>
+                {plan.priceInr === 0 ? 'Free' : `₹${plan.priceInr.toLocaleString('en-IN')}`}
+                {plan.priceInr > 0 && <span style={{ color: C.muted, fontSize: 12, fontWeight: 500 }}> / seat / month</span>}
+              </div>
+              <p style={{ minHeight: 38, color: C.muted, fontSize: 13 }}>{plan.description}</p>
+              <ul style={{ minHeight: 118, paddingLeft: 18, color: C.muted, fontSize: 13, lineHeight: 1.8 }}>
+                {plan.features.map(feature => <li key={feature}>{feature}</li>)}
+              </ul>
+              <button onClick={() => nav('/signup')} style={{ ...G.btn(plan.code === 'pro' ? 'linear-gradient(135deg,#8B7CF8,#6B5CE7)' : 'rgba(255,255,255,0.08)'), width: '100%' }}>
+                {plan.code === 'free' ? 'Start free' : 'Create account'}
+              </button>
+            </div>
+          ))}
+        </div>
+
         {/* PIPELINE */}
         <div style={{ textAlign: 'center', marginBottom: 44 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.teal, letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: 12 }}>Pipeline</div>
@@ -104,10 +130,10 @@ export default function Landing() {
 
         {/* DELIVERABLES */}
         <div style={{ ...G.panel({ padding: '40px', marginBottom: 80, background: 'rgba(139,124,248,0.05)', borderColor: 'rgba(139,124,248,0.15)' }) }}>
-          <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>5 Deliverables. Every Time. 📦</h3>
-          <p style={{ color: C.muted, fontSize: 14, marginBottom: 28 }}>Every analysis generates exactly these outputs — ready to share, present, or deploy.</p>
+          <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.5px' }}>Five Core Analysis Deliverables 📦</h3>
+          <p style={{ color: C.muted, fontSize: 14, marginBottom: 28 }}>Each analysis generates these outputs. ML runs also include a model comparison report.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-            {[['🗂️','cleaned_data.csv','Processed Dataset'],['📋','eda_report.md','Statistical Report'],['💡','insights_report.md','Business Insights'],['🎨','/visualizations/','50+ PNG Charts'],['📓','analysis_notebook.ipynb','Jupyter Notebook']].map(([icon,name,type])=>(
+            {[['🗂️','cleaned_data.csv','Processed Dataset'],['📋','eda_report.md','Statistical Report'],['💡','insights_report.md','Data Insights'],['🎨','/visualizations/','Up to 16 PNG charts'],['📓','analysis_notebook.ipynb','Jupyter Notebook']].map(([icon,name,type])=>(
               <div key={name} style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px', display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s', cursor: 'default' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,124,248,0.1)'; e.currentTarget.style.borderColor = 'rgba(139,124,248,0.3)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = C.border; }}>
@@ -121,7 +147,7 @@ export default function Landing() {
         {/* CTA */}
         <div style={{ background: 'linear-gradient(135deg,rgba(139,124,248,0.1),rgba(94,207,178,0.07))', border: `1px solid rgba(139,124,248,0.18)`, borderRadius: 28, padding: '60px 40px', textAlign: 'center', marginBottom: 60 }}>
           <h2 style={{ fontSize: 'clamp(26px,3vw,44px)', fontWeight: 900, letterSpacing: '-1px', marginBottom: 14 }}>Ready to analyze your data?</h2>
-          <p style={{ color: C.muted, fontSize: 16, marginBottom: 32, maxWidth: 420, margin: '0 auto 32px', lineHeight: 1.7 }}>Join thousands of analysts using DS Agent to automate their workflows.</p>
+          <p style={{ color: C.muted, fontSize: 16, marginBottom: 32, maxWidth: 420, margin: '0 auto 32px', lineHeight: 1.7 }}>Build repeatable analysis workflows with automated reports, visualizations, and ML baselines.</p>
           <button onClick={() => nav('/signup')} style={{ ...G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)'), fontSize: 15, padding: '14px 40px', boxShadow: '0 6px 32px rgba(139,124,248,0.3)', borderRadius: 13 }}>
             Start for Free — No Credit Card
           </button>

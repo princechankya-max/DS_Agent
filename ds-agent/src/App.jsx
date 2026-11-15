@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard.jsx';
 import NewAnalysis from './pages/NewAnalysis.jsx';
 import Results from './pages/Results.jsx';
 import Projects from './pages/Projects.jsx';
+import Billing from './pages/Billing.jsx';
+import { ForgotPassword, ResetPassword, VerifyEmail } from './pages/AuthActions.jsx';
+import { AcceptWorkspaceInvitation, WorkspaceSettings } from './pages/Workspaces.jsx';
 
 // ── Auth Context ──
 export const AuthCtx = createContext(null);
@@ -20,9 +23,15 @@ function AuthProvider({ children }) {
   useEffect(() => {
     const token = localStorage.getItem('ds_access_token');
     if (token) {
-      authApi.me().then(r => setUser(r.data.user)).catch(() => {
+      authApi.me().then(r => {
+        const workspaces = r.data.workspaces || [];
+        const selected = workspaces.find(item => item.id === localStorage.getItem('ds_workspace_id')) || workspaces[0];
+        if (selected) localStorage.setItem('ds_workspace_id', selected.id);
+        setUser({ ...r.data.user, workspaces, workspace: selected || null });
+      }).catch(() => {
         localStorage.removeItem('ds_access_token');
         localStorage.removeItem('ds_refresh_token');
+        localStorage.removeItem('ds_workspace_id');
       }).finally(() => setLoading(false));
     } else setLoading(false);
   }, []);
@@ -30,12 +39,19 @@ function AuthProvider({ children }) {
   const login = (userData, accessToken, refreshToken) => {
     localStorage.setItem('ds_access_token', accessToken);
     localStorage.setItem('ds_refresh_token', refreshToken);
-    setUser(userData);
+    if (userData.workspace?.id) localStorage.setItem('ds_workspace_id', userData.workspace.id);
+    setUser({
+      ...userData,
+      workspace: userData.workspace || null,
+      workspaces: userData.workspace ? [userData.workspace] : [],
+    });
   };
 
   const logout = async () => {
     try { await authApi.logout(); } catch {}
-    localStorage.clear();
+    localStorage.removeItem('ds_access_token');
+    localStorage.removeItem('ds_refresh_token');
+    localStorage.removeItem('ds_workspace_id');
     setUser(null);
   };
 
@@ -70,10 +86,16 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/signin" element={<PublicRoute><SignIn /></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/dashboard/new" element={<PrivateRoute><NewAnalysis /></PrivateRoute>} />
           <Route path="/dashboard/analysis/:id" element={<PrivateRoute><Results /></PrivateRoute>} />
           <Route path="/dashboard/projects" element={<PrivateRoute><Projects /></PrivateRoute>} />
+          <Route path="/dashboard/billing" element={<PrivateRoute><Billing /></PrivateRoute>} />
+          <Route path="/dashboard/workspace" element={<PrivateRoute><WorkspaceSettings /></PrivateRoute>} />
+          <Route path="/accept-invitation" element={<AcceptWorkspaceInvitation />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </BrowserRouter>
