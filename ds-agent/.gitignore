@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+ds_agent.db*
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+outputs/
+__pycache__/
+*.py[cod]

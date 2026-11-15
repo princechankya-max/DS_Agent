@@ -6,34 +6,47 @@
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "client": "vite",
-    "server": "node backend/server.js",
+    "server": "node --env-file-if-exists=.env backend/server.js",
     "build": "vite build",
-    "setup": "node backend/db/init.js"
+    "setup": "node --env-file-if-exists=.env backend/db/init.js",
+    "billing:provision": "node --env-file-if-exists=.env scripts/provision-razorpay-plans.js",
+    "migrate:sqlite": "node --env-file-if-exists=.env scripts/migrate-sqlite-to-saas.js",
+    "analysis:worker": "node --env-file-if-exists=.env backend/workers/analysis.js",
+    "test": "node --test && python -m unittest discover -s tests -v"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1168.0",
+    "@aws-sdk/lib-storage": "^3.1168.0",
+    "@aws-sdk/s3-request-presigner": "^3.1168.0",
     "axios": "^1.6.7",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.3",
+    "bullmq": "^6.7.6",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
+    "multer": "^2.5.0",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^6.9.8",
+    "nodemailer": "^10.5.0",
+    "pg": "^8.23.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.3",
+    "react-router-dom": "^7.18.5",
     "recharts": "^2.10.3",
     "socket.io": "^4.6.2",
     "socket.io-client": "^4.6.2",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "concurrently": "^8.2.2",
-    "vite": "^5.0.8"
+    "vite": "^8.3.8"
   }
 }

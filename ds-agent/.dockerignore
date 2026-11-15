@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+node_modules
+dist
+outputs
+uploads
+ds_agent.db
+ds_agent.db-shm
+ds_agent.db-wal
+__pycache__
+*.py[cod]
+.pytest_cache

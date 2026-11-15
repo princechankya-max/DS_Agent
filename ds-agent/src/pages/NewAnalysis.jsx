@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Sidebar from '../components/Sidebar.jsx';
@@ -11,6 +11,8 @@ const STEPS = ['Upload File', 'Configure', 'Analyze'];
 export default function NewAnalysis() {
   const nav = useNavigate();
   const fileRef = useRef();
+  const pollRef = useRef(null);
+  const socketRef = useRef(null);
   const [step, setStep] = useState(0);
   const [file, setFile] = useState(null);
   const [fileInfo, setFileInfo] = useState(null);
@@ -25,6 +27,11 @@ export default function NewAnalysis() {
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
   const [drag, setDrag] = useState(false);
+
+  useEffect(() => () => {
+    clearInterval(pollRef.current);
+    socketRef.current?.disconnect();
+  }, []);
 
   const handleFile = async (f) => {
     if (!f) return;
@@ -47,38 +54,65 @@ export default function NewAnalysis() {
   };
 
   const startAnalysis = async () => {
+    if (['eda_ml', 'full'].includes(analysisType) && !targetCol.trim()) {
+      setErr('Enter a target column to run machine learning.');
+      return;
+    }
     setStep(2);
     setProgress([{ icon: '📁', msg: 'File validated', done: true }]);
     try {
       const res = await analysisApi.create({
-        name, file_path: fileInfo.path, original_name: fileInfo.original_name,
-        file_size: fileInfo.size, analysis_type: analysisType, target_col: targetCol || null,
+        name, file_id: fileInfo.file_id, original_name: fileInfo.original_name,
+        analysis_type: analysisType, target_col: targetCol || null,
       });
       const jid = res.data.job_id;
       setJobId(jid);
 
       // Listen for progress
-      const socket = io('/', { transports: ['polling'] });
+      const socket = io('/', {
+        transports: ['polling'],
+        auth: {
+          token: localStorage.getItem('ds_access_token'),
+          workspaceId: localStorage.getItem('ds_workspace_id') || '',
+        },
+      });
+      socketRef.current = socket;
       socket.emit('join-job', jid);
-      socket.on('progress', ({ step: pStep, pct, msg }) => {
+      socket.on('progress', ({ pct, msg }) => {
         setProgressPct(pct);
         setProgress(prev => {
           const exists = prev.find(p => p.msg === msg);
           if (exists) return prev;
           return [...prev, { icon: pct === 100 ? '✓' : '⟳', msg, done: pct === 100 }];
         });
-        if (pct >= 100) { setDone(true); socket.disconnect(); }
+        if (pct >= 100) {
+          setDone(true);
+          clearInterval(pollRef.current);
+          socket.disconnect();
+        }
       });
 
       // Fallback polling
-      const poll = setInterval(async () => {
+      pollRef.current = setInterval(async () => {
         try {
           const s = await analysisApi.get(jid);
-          if (s.data.status === 'completed') { setDone(true); setProgressPct(100); clearInterval(poll); }
-          if (s.data.status === 'failed') { setErr(s.data.error_msg || 'Analysis failed'); clearInterval(poll); }
+          if (s.data.status === 'completed') {
+            setDone(true);
+            setProgressPct(100);
+            clearInterval(pollRef.current);
+            socket.disconnect();
+          }
+          if (s.data.status === 'failed') {
+            setErr(s.data.error_msg || 'Analysis failed');
+            clearInterval(pollRef.current);
+            socket.disconnect();
+          }
         } catch {}
       }, 3000);
-    } catch (e) { setErr(e.response?.data?.error || 'Failed to start analysis'); }
+    } catch (e) {
+      setErr(e.response?.data?.error || 'Failed to start analysis');
+      setStep(1);
+    }
   };
 
   return (
@@ -131,7 +165,7 @@ export default function NewAnalysis() {
                   <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{drag ? 'Drop it!' : 'Drop your dataset here'}</div>
                   <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>CSV, Excel, JSON, Parquet · Up to 100MB</div>
                   <button style={G.btn('linear-gradient(135deg,#8B7CF8,#6B5CE7)', false)} onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>Browse Files</button>
-                  <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.json,.parquet" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+                  <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.json,.parquet" style={{ display: 'none' }} onClick={e => e.stopPropagation()} onChange={e => { handleFile(e.target.files[0]); e.currentTarget.value = ''; }} />
                 </>
               )}
             </div>
@@ -166,8 +200,9 @@ export default function NewAnalysis() {
 
                 {(analysisType === 'eda_ml' || analysisType === 'full') && (
                   <div style={{ marginBottom: 18 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: '0.3px', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Target Column (for ML)</label>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: '0.3px', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Target Column (required for ML)</label>
                     <input value={targetCol} onChange={e => setTargetCol(e.target.value)} placeholder="e.g. price, churn, category..." style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, padding: '11px 14px', width: '100%', fontFamily: 'inherit', outline: 'none' }} />
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Enter the column to predict. Models are compared on a held-out test set.</div>
                   </div>
                 )}
 

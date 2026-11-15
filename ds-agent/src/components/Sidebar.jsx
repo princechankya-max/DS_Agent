@@ -6,6 +6,8 @@ const NAV = [
   { path: '/dashboard',          icon: '📊', label: 'Dashboard'    },
   { path: '/dashboard/new',      icon: '✦',  label: 'New Analysis' },
   { path: '/dashboard/projects', icon: '📁', label: 'Projects'     },
+  { path: '/dashboard/billing',  icon: '💳', label: 'Plans & Usage' },
+  { path: '/dashboard/workspace', icon: '👥', label: 'Workspace' },
 ];
 
 export default function Sidebar() {
@@ -25,6 +27,19 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ flex: 1 }}>
+        {(user?.workspaces?.length || 0) > 1 && (
+          <select
+            aria-label="Active workspace"
+            value={localStorage.getItem('ds_workspace_id') || user.workspaces[0].id}
+            onChange={event => {
+              localStorage.setItem('ds_workspace_id', event.target.value);
+              window.location.reload();
+            }}
+            style={{ width: '100%', marginBottom: 10, padding: '9px 10px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', color: C.text, border: `1px solid ${C.border}` }}
+          >
+            {user.workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+          </select>
+        )}
         {NAV.map(item => {
           const active = location.pathname === item.path;
           return (
